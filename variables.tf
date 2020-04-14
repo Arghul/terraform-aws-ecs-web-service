@@ -113,8 +113,9 @@ variable "container_port" {
 }
 
 variable "container_definitions" {
-  default = "Container definitions specification in json format"
-  type    = string
+  description = "Container definitions specification in json format"
+  type        = string
+  default     = ""
 }
 
 variable "desired_count" {

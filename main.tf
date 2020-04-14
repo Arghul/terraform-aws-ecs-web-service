@@ -1,22 +1,22 @@
 locals {
   name                          = var.short_name ? module.label.name : module.label.id
   default_container_definitions = <<EOF
-[
-  {
-    "name": "${local.name}",
-    "image": "${var.task_image}",
-    "cpu": ${var.task_cpu},
-    "memory": ${var.task_mem},
-    "essential": true,
-    "portmappings": [
-      {
-        "containerport": ${var.container_port},
-        "protocol": "tcp"
-      }
-    ]
-  }
-]
-EOF
+  [
+    {
+      "name": "${local.name}",
+      "image": "${var.task_image}",
+      "cpu": ${var.task_cpu},
+      "memory": ${var.task_mem},
+      "essential": true,
+      "portmappings": [
+        {
+          "containerport": ${var.container_port},
+          "protocol": "tcp"
+        }
+      ]
+    }
+  ]
+  EOF
   container_definitions         = var.container_definitions != "" ? var.container_definitions : local.default_container_definitions
 }
 
@@ -138,7 +138,7 @@ resource "aws_alb_target_group" "main" {
 }
 
 resource "aws_alb_listener" "http" {
-  count = var.enable
+  count = var.enable ? 1 : 0
 
   load_balancer_arn = aws_alb.main[0].id
   port              = "80"
