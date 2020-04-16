@@ -181,12 +181,19 @@ resource "aws_ecs_task_definition" "main" {
 
 }
 
+data "aws_ecs_task_definition" "main" {
+  count = var.enable ? 1 : 0
+
+  task_definition = aws_ecs_task_definition.main[0].family
+}
+
 resource "aws_ecs_service" "main" {
   count = var.enable ? 1 : 0
 
   name                               = local.name
   cluster                            = var.cluster_name
-  task_definition                    = aws_ecs_task_definition.main[0].id
+//  task_definition                    = aws_ecs_task_definition.main[0].id
+  task_definition                    = "${aws_ecs_task_definition.main[0].family}:${max(aws_ecs_task_definition.main[0].revision, data.aws_ecs_task_definition.main[0].revision)}"
   desired_count                      = var.desired_count
   deployment_minimum_healthy_percent = var.deployment_min_healthy_percent
   deployment_maximum_percent         = var.deployment_max_percent
