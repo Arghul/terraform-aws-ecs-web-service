@@ -198,6 +198,7 @@ variable "tasks" {
 variable "task_image" {
   description = "Image to use ie: nginx, nginxdemos/hello"
   type        = string
+  default     = "nginxdemos/hello"
 }
 
 variable "allow_cidr_blocks" {
