@@ -6,23 +6,37 @@ provider "aws" {
   region = var.region
 }
 
-module "api_web_service" {
+module "ecs_service" {
   source = "../"
 
-  name                = "api"
+  name                = "ecs-web"
   namespace           = "arghul"
-  environment         = "prod"
-  vpc_id              = "vpc-2424bb40"
-  public_subnet_ids   = ["subnet-58f79f2e", "subnet-8ee658d6"]
-  access_log_bucket   = "logs-bucket-01"
-  access_log_prefix   = "ALB"
-  health_check_path   = "/"
-  ssl_certificate_arn = ""
-  task_image          = "nginxdemos/hello"
+  environment         = "dev"
+  vpc_id              = "vpc-0dc7637eb79ce0c58"
+  public_subnet_ids   = ["subnet-078ded0cc969ddabe", "subnet-08f2ece121a14df3e"]
+  access_log_bucket   = ""
+//  access_log_prefix   = "ALB"
+//  health_check_path   = "/"
+//  ssl_certificate_arn = ""
+  tasks = [
+    {
+      name       = "api1"
+      task_image = "nginxdemos/hello"
+      allow_cidr_blocks = [
+        "1.1.1.1/32"
+      ]
+    },
+    {
+      name       = "web1"
+      task_image = "nginxdemos/hello"
+      cpu        = 10
+    }
+  ]
+  task_image = "nginxdemos/hello"
 
-  security_group_ids = ["sg-008be838c60ccbe9c"]
+  security_group_ids = ["sg-0ab628bd0f2831584"]
 
-  cluster_name                   = "arghul-prod-ecs"
+  cluster_name                   = "arghul-dev-ecs"
   scale_up_cooldown_seconds      = "30"
   scale_down_cooldown_seconds    = "30"
   deployment_min_healthy_percent = "100"

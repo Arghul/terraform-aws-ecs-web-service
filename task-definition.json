@@ -1,0 +1,23 @@
+[
+    {
+      "name": "${name}",
+      "image": "${image}",
+      "cpu": ${cpu},
+      "memory": ${mem},
+      "portmappings": [
+        {
+          "containerport": ${port},
+          "protocol": "tcp"
+        }
+      ],
+      %{~ if volume_type == "efs" ~}
+      "mountPoints": [
+        {
+          "sourceVolume": "storage-${name}",
+          "containerPath": "/mount/efs"
+        }
+      ],
+      %{~ endif ~}
+      "essential": true
+  }
+]
