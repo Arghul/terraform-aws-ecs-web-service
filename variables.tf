@@ -66,6 +66,7 @@ variable "public_subnet_ids" {
 variable "access_log_bucket" {
   description = "ALB access log bucket"
   type        = string
+  default     = ""
 }
 
 variable "access_log_prefix" {
