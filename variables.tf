@@ -69,12 +69,27 @@ variable "access_log_bucket" {
 }
 
 variable "access_log_prefix" {
-  description = "ALB access log prefix"
+  description = "ALB access log prefix. If not set it defaults to `name`"
   type        = string
+  default     = ""
 }
 
 variable "health_check_path" {
-  default = "/"
+  description = "Health check path"
+  type        = string
+  default     = "/"
+}
+
+variable "health_check_healthy_threshold" {
+  description = "Health check healthy threshold"
+  type        = string
+  default     = "3"
+}
+
+variable "health_check_interval" {
+  description = "Health check interval"
+  type        = string
+  default     = "30"
 }
 
 variable "alb_target_group_port" {
@@ -109,6 +124,7 @@ variable "deployment_max_percent" {
 
 variable "container_port" {
   description = "Port on which service is running in a container"
+  type = number
   default     = 80
 }
 
@@ -163,13 +179,19 @@ variable "scale_down_threshold" {
 variable "task_cpu" {
   description = "CPU allocated to run a task"
   default     = 20
-  type        = string
+  type        = number
 }
 
 variable "task_mem" {
   description = "Memory allocated to run a task"
   default     = 128
-  type        = string
+  type        = number
+}
+
+variable "tasks" {
+  description = "List of services to run"
+  default     = []
+  type        = any
 }
 
 variable "task_image" {
@@ -183,4 +205,12 @@ variable "allow_cidr_blocks" {
   default = [
     "0.0.0.0/0"
   ]
+}
+
+variable "volume" {
+  description = "Persistent storage to attach to services (efs|ebs). Default none"
+  type = map(string)
+  default = {
+    type = "none"
+  }
 }
