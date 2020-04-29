@@ -126,7 +126,7 @@ variable "deployment_max_percent" {
 variable "container_port" {
   description = "Port on which service is running in a container"
   type = number
-  default     = 80
+  default = 80
 }
 
 variable "container_definitions" {
@@ -187,12 +187,6 @@ variable "task_mem" {
   description = "Memory allocated to run a task"
   default     = 128
   type        = number
-}
-
-variable "tasks" {
-  description = "List of services to run"
-  default     = []
-  type        = any
 }
 
 variable "task_image" {
