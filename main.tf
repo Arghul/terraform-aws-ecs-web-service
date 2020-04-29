@@ -266,7 +266,7 @@ data "aws_ecs_task_definition" "main" {
 resource "aws_ecs_service" "main" {
   count = var.enable ? 1 : 0
 
-  name                               = var.name
+  name                               = local.name
   cluster                            = var.cluster_name
   task_definition                    = "${aws_ecs_task_definition.main[count.index].family}:${max(aws_ecs_task_definition.main[count.index].revision, data.aws_ecs_task_definition.main[count.index].revision)}"
   desired_count                      = var.desired_count
@@ -277,7 +277,7 @@ resource "aws_ecs_service" "main" {
 
   load_balancer {
     target_group_arn = aws_alb_target_group.main[count.index].id
-    container_name   = var.name
+    container_name   = local.name
     container_port   = var.container_port
   }
 
