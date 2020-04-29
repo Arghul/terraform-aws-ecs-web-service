@@ -9,7 +9,7 @@ provider "aws" {
 module "ecs_service" {
   source = "../"
 
-  name                = "ecs-web"
+  name                = "hello-arghul"
   namespace           = "arghul"
   environment         = "dev"
   vpc_id              = "vpc-0dc7637eb79ce0c58"
@@ -18,20 +18,6 @@ module "ecs_service" {
 //  access_log_prefix   = "ALB"
 //  health_check_path   = "/"
 //  ssl_certificate_arn = ""
-  tasks = [
-    {
-      name       = "api1"
-      task_image = "nginxdemos/hello"
-      allow_cidr_blocks = [
-        "1.1.1.1/32"
-      ]
-    },
-    {
-      name       = "web1"
-      task_image = "nginxdemos/hello"
-      cpu        = 10
-    }
-  ]
   task_image = "nginxdemos/hello"
 
   security_group_ids = ["sg-0ab628bd0f2831584"]

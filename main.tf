@@ -1,23 +1,6 @@
 locals {
   name              = var.short_name ? module.label.name : module.label.id
   access_log_prefix = var.access_log_prefix == "" ? local.name : var.access_log_prefix
-  tasks = flatten([
-    for task in var.tasks : [{
-      name                           = task.name
-      image                          = lookup(task, "image", var.task_image)
-      cpu                            = lookup(task, "cpu", var.task_cpu)
-      mem                            = lookup(task, "mem", var.task_mem)
-      port                           = lookup(task, "port", var.container_port)
-      min_count                      = lookup(task, "min_count", var.min_count)
-      max_count                      = lookup(task, "min_count", var.min_count)
-      volume                         = lookup(task, "volume", var.volume)
-      allow_cidr_blocks              = lookup(task, "allow_cidr_blocks", var.allow_cidr_blocks)
-      certificate_arn                = lookup(task, "certificate_arn", "")
-      health_check_path              = lookup(task, "health_check_path", var.health_check_path)
-      health_check_healthy_threshold = lookup(task, "health_check_healthy_threshold", var.health_check_healthy_threshold)
-      health_check_interval          = lookup(task, "health_check_interval", var.health_check_interval)
-  }]
-  ])
 }
 
 module "label" {
@@ -74,15 +57,15 @@ module "service_role" {
 # Security group resources
 #
 resource "aws_security_group" "main" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
-  name   = "${local.tasks[count.index].name}-sg"
+  name   = "${local.name}-sg"
   vpc_id = var.vpc_id
   tags   = module.label.tags
 }
 
 resource "aws_security_group_rule" "http" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
   description       = "Managed by terraform"
   type              = "ingress"
@@ -90,11 +73,11 @@ resource "aws_security_group_rule" "http" {
   protocol          = "tcp"
   from_port         = 80
   to_port           = 80
-  cidr_blocks       = local.tasks[count.index].allow_cidr_blocks
+  cidr_blocks       = var.allow_cidr_blocks
 }
 
 resource "aws_security_group_rule" "https" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
   description       = "Managed by terraform"
   type              = "ingress"
@@ -102,16 +85,16 @@ resource "aws_security_group_rule" "https" {
   protocol          = "tcp"
   from_port         = 443
   to_port           = 443
-  cidr_blocks       = local.tasks[count.index].allow_cidr_blocks
+  cidr_blocks       = var.allow_cidr_blocks
 }
 
 #
 # ALB resources
 #
 resource "aws_alb" "main" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
-  name            = "${local.tasks[count.index].name}-alb"
+  name            = "${local.name}-alb"
   security_groups = concat(var.security_group_ids, list(aws_security_group.main[count.index].id))
   subnets         = var.public_subnet_ids
 
@@ -119,24 +102,24 @@ resource "aws_alb" "main" {
   access_logs {
     enabled = var.access_log_bucket != "" ? true : false
     bucket = var.access_log_bucket
-    prefix = "${local.access_log_prefix}-${local.tasks[count.index].name}"
+    prefix = "${local.access_log_prefix}-${local.name}"
   }
 
   tags = module.label.tags
 }
 
 resource "aws_alb_target_group" "main" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
-  name = "${local.tasks[count.index].name}-alb-tg"
+  name = "${local.name}-alb-tg"
 
   health_check {
-    healthy_threshold   = local.tasks[count.index].health_check_healthy_threshold
-    interval            = local.tasks[count.index].health_check_interval
+    healthy_threshold   = var.health_check_healthy_threshold
+    interval            = var.health_check_interval
     protocol            = "HTTP"
     matcher             = "200"
     timeout             = "3"
-    path                = local.tasks[count.index].health_check_path
+    path                = var.health_check_path
     unhealthy_threshold = "2"
   }
 
@@ -153,7 +136,7 @@ resource "aws_alb_target_group" "main" {
 }
 
 resource "aws_alb_listener" "http" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
   load_balancer_arn = aws_alb.main[count.index].id
   port              = "80"
@@ -201,13 +184,13 @@ resource "aws_acm_certificate" "main" {
 }
 
 resource "aws_alb_listener" "https" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
   load_balancer_arn = aws_alb.main[count.index].id
   port              = "443"
   protocol          = "HTTPS"
 
-  certificate_arn = local.tasks[count.index].certificate_arn != "" ? local.tasks[count.index].certificate_arn : aws_acm_certificate.main[0].arn
+  certificate_arn = var.ssl_certificate_arn != "" ? var.ssl_certificate_arn : aws_acm_certificate.main[0].arn
 
   default_action {
     target_group_arn = aws_alb_target_group.main[count.index].id
@@ -225,16 +208,16 @@ resource "aws_alb_listener" "https" {
 //}
 
 resource "aws_ecs_task_definition" "main" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
-  family                = local.tasks[count.index].name
+  family                = local.name
   container_definitions = templatefile("${path.module}/task-definition.json", {
-        name = local.tasks[count.index].name
-        image = local.tasks[count.index].image
-        cpu = local.tasks[count.index].cpu
-        mem = local.tasks[count.index].mem
-        port = local.tasks[count.index].port
-        volume_type = local.tasks[count.index].volume.type
+        name = local.name
+        image = var.task_image
+        cpu = var.task_cpu
+        mem = var.task_mem
+        port = var.container_port
+        volume_type = var.volume.type
   })
 
 //  dynamic "volume" {
@@ -275,15 +258,15 @@ resource "aws_ecs_task_definition" "main" {
 }
 
 data "aws_ecs_task_definition" "main" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
   task_definition = aws_ecs_task_definition.main[count.index].family
 }
 
 resource "aws_ecs_service" "main" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
-  name                               = local.tasks[count.index].name
+  name                               = var.name
   cluster                            = var.cluster_name
   task_definition                    = "${aws_ecs_task_definition.main[count.index].family}:${max(aws_ecs_task_definition.main[count.index].revision, data.aws_ecs_task_definition.main[count.index].revision)}"
   desired_count                      = var.desired_count
@@ -294,8 +277,8 @@ resource "aws_ecs_service" "main" {
 
   load_balancer {
     target_group_arn = aws_alb_target_group.main[count.index].id
-    container_name   = local.tasks[count.index].name
-    container_port   = local.tasks[count.index].port
+    container_name   = var.name
+    container_port   = var.container_port
   }
 
   lifecycle {
@@ -308,13 +291,13 @@ resource "aws_ecs_service" "main" {
 # Application AutoScaling resources
 #
 resource "aws_appautoscaling_target" "main" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
   service_namespace  = "ecs"
   resource_id        = "service/${var.cluster_name}/${aws_ecs_service.main[count.index].name}"
   scalable_dimension = "ecs:service:DesiredCount"
-  min_capacity       = local.tasks[count.index].min_count
-  max_capacity       = local.tasks[count.index].max_count
+  min_capacity       = var.min_count
+  max_capacity       = var.max_count
 
   depends_on = [
     aws_ecs_service.main,
@@ -322,9 +305,9 @@ resource "aws_appautoscaling_target" "main" {
 }
 
 resource "aws_appautoscaling_policy" "up" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
-  name               = "${local.tasks[count.index].name}-aap-up"
+  name               = "${local.name}-aap-up"
   service_namespace  = "ecs"
   resource_id        = "service/${var.cluster_name}/${aws_ecs_service.main[count.index].name}"
   scalable_dimension = "ecs:service:DesiredCount"
@@ -346,9 +329,9 @@ resource "aws_appautoscaling_policy" "up" {
 }
 
 resource "aws_appautoscaling_policy" "down" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
-  name               = "${local.tasks[count.index].name}-aap-down"
+  name               = "${local.name}-aap-down"
   service_namespace  = "ecs"
   resource_id        = "service/${var.cluster_name}/${aws_ecs_service.main[count.index].name}"
   scalable_dimension = "ecs:service:DesiredCount"
@@ -370,9 +353,9 @@ resource "aws_appautoscaling_policy" "down" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "app_service_high_cpu" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
-  alarm_name          = "${local.tasks[count.index].name}-alarmCPUUtilizationHigh"
+  alarm_name          = "${local.name}-alarmCPUUtilizationHigh"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "1"
   metric_name         = "CPUUtilization"
@@ -383,7 +366,7 @@ resource "aws_cloudwatch_metric_alarm" "app_service_high_cpu" {
 
   dimensions = {
     ClusterName = var.cluster_name
-    ServiceName = local.tasks[count.index].name
+    ServiceName = local.name
   }
 
   alarm_actions = [aws_appautoscaling_policy.up[count.index].arn]
@@ -391,9 +374,9 @@ resource "aws_cloudwatch_metric_alarm" "app_service_high_cpu" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "app_service_low_cpu" {
-  count = var.enable && length(local.tasks) > 0 ? length(local.tasks) : 0
+  count = var.enable ? 1 : 0
 
-  alarm_name          = "${local.tasks[count.index].name}-alarmCPUUtilizationLow"
+  alarm_name          = "${local.name}-alarmCPUUtilizationLow"
   comparison_operator = "LessThanOrEqualToThreshold"
   evaluation_periods  = "1"
   metric_name         = "CPUUtilization"
@@ -404,7 +387,7 @@ resource "aws_cloudwatch_metric_alarm" "app_service_low_cpu" {
 
   dimensions = {
     ClusterName = var.cluster_name
-    ServiceName = local.tasks[count.index].name
+    ServiceName = local.name
   }
 
   alarm_actions = [aws_appautoscaling_policy.down[count.index].arn]
