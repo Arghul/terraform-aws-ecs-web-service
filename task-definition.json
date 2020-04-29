@@ -10,6 +10,14 @@
           "protocol": "tcp"
         }
       ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "${name}",
+          "awslogs-region": "${region}",
+          "awslogs-stream-prefix": "${name}"
+        }
+      },
       %{~ if volume_type == "efs" ~}
       "mountPoints": [
         {

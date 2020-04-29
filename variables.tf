@@ -4,6 +4,12 @@ variable "enable" {
   default     = true
 }
 
+variable "region" {
+  description = "AWS region"
+  type = string
+  default = "eu-west-1"
+}
+
 variable "name" {
   description = "Service name"
 }
@@ -201,6 +207,12 @@ variable "allow_cidr_blocks" {
   default = [
     "0.0.0.0/0"
   ]
+}
+
+variable "log_retention_in_days" {
+  description = "Log retention"
+  type        = string
+  default     = 3
 }
 
 variable "volume" {

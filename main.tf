@@ -222,6 +222,7 @@ resource "aws_ecs_task_definition" "main" {
         cpu = var.task_cpu
         mem = var.task_mem
         port = var.container_port
+        region = var.region
         volume_type = var.volume.type
   })
 
@@ -260,6 +261,12 @@ resource "aws_ecs_task_definition" "main" {
     create_before_destroy = true
   }
 
+}
+
+resource "aws_cloudwatch_log_group" "app" {
+  name              = local.name
+  tags              = module.label.tags
+  retention_in_days = var.log_retention_in_days
 }
 
 data "aws_ecs_task_definition" "main" {
