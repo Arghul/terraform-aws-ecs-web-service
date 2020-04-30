@@ -101,8 +101,8 @@ resource "aws_alb" "main" {
 
   access_logs {
     enabled = var.access_log_bucket != "" ? true : false
-    bucket = var.access_log_bucket
-    prefix = "${local.access_log_prefix}-${local.name}"
+    bucket  = var.access_log_bucket
+    prefix  = "${local.access_log_prefix}-${local.name}"
   }
 
   tags = module.label.tags
@@ -190,12 +190,20 @@ resource "aws_alb_listener" "https" {
   port              = "443"
   protocol          = "HTTPS"
 
-  certificate_arn = var.ssl_certificate_arn != "" ? var.ssl_certificate_arn : aws_acm_certificate.main[0].arn
+  //  certificate_arn = var.ssl_certificate_arn != "" ? var.ssl_certificate_arn : aws_acm_certificate.main[0].arn
 
   default_action {
     target_group_arn = aws_alb_target_group.main[count.index].id
     type             = "forward"
   }
+
+}
+
+resource "aws_alb_listener_certificate" "cert" {
+  count = var.enable ? 1 : 0
+
+  certificate_arn = var.ssl_certificate_arn != "" ? var.ssl_certificate_arn : aws_acm_certificate.main[0].arn
+  listener_arn    = aws_alb_listener.https[0].arn
 }
 
 #
@@ -210,47 +218,47 @@ resource "aws_alb_listener" "https" {
 resource "aws_ecs_task_definition" "main" {
   count = var.enable ? 1 : 0
 
-  family                = local.name
+  family = local.name
   container_definitions = templatefile("${path.module}/task-definition.json", {
-        name = local.name
-        image = var.task_image
-        cpu = var.task_cpu
-        mem = var.task_mem
-        port = var.container_port
-        region = var.region
-        volume_type = var.volume.type
+    name        = local.name
+    image       = var.task_image
+    cpu         = var.task_cpu
+    mem         = var.task_mem
+    port        = var.container_port
+    region      = var.region
+    volume_type = var.volume.type
   })
 
-//  dynamic "volume" {
-//    for_each = local.tasks[count.index].volume.type == "efs" ? [ 1 ] : []
-//    content {
-//      name = "storage-${local.tasks[count.index].name}"
-//      docker_volume_configuration {
-//        scope         = "shared"
-//        autoprovision = true
-//        driver        = "local"
-//
-//        driver_opts = {
-//          "type"   = "nfs4"
-//          "device" = "${aws_efs_file_system.fs[0].dns_name}:/${local.tasks[count.index].name}"
-//          "o"      = "addr=${aws_efs_file_system.fs[0].dns_name},nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
-//        }
-//      }
-//    }
-//  }
+  //  dynamic "volume" {
+  //    for_each = local.tasks[count.index].volume.type == "efs" ? [ 1 ] : []
+  //    content {
+  //      name = "storage-${local.tasks[count.index].name}"
+  //      docker_volume_configuration {
+  //        scope         = "shared"
+  //        autoprovision = true
+  //        driver        = "local"
+  //
+  //        driver_opts = {
+  //          "type"   = "nfs4"
+  //          "device" = "${aws_efs_file_system.fs[0].dns_name}:/${local.tasks[count.index].name}"
+  //          "o"      = "addr=${aws_efs_file_system.fs[0].dns_name},nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
+  //        }
+  //      }
+  //    }
+  //  }
 
-//  volume {
-//    name = "rexray-vol-${count.index}"
-//    docker_volume_configuration {
-//      autoprovision = true
-//      scope = "shared"
-//      driver = "rexray/ebs"
-//      driver_opts = {
-//        volumetype = "gp2"
-//        size = "5"
-//      }
-//    }
-//  }
+  //  volume {
+  //    name = "rexray-vol-${count.index}"
+  //    docker_volume_configuration {
+  //      autoprovision = true
+  //      scope = "shared"
+  //      driver = "rexray/ebs"
+  //      driver_opts = {
+  //        volumetype = "gp2"
+  //        size = "5"
+  //      }
+  //    }
+  //  }
 
   lifecycle {
     create_before_destroy = true

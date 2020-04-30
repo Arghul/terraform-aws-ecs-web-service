@@ -6,8 +6,8 @@ variable "enable" {
 
 variable "region" {
   description = "AWS region"
-  type = string
-  default = "eu-west-1"
+  type        = string
+  default     = "eu-west-1"
 }
 
 variable "name" {
@@ -131,8 +131,8 @@ variable "deployment_max_percent" {
 
 variable "container_port" {
   description = "Port on which service is running in a container"
-  type = number
-  default = 80
+  type        = number
+  default     = 80
 }
 
 variable "container_definitions" {
@@ -217,7 +217,7 @@ variable "log_retention_in_days" {
 
 variable "volume" {
   description = "Persistent storage to attach to services (efs|ebs). Default none"
-  type = map(string)
+  type        = map(string)
   default = {
     type = "none"
   }
