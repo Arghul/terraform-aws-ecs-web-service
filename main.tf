@@ -143,18 +143,13 @@ resource "aws_alb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    target_group_arn = aws_alb_target_group.main[count.index].id
-    type             = "forward"
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
   }
-
-//  default_action {
-//    type = "redirect"
-//    redirect {
-//      port        = "443"
-//      protocol    = "HTTPS"
-//      status_code = "HTTP_301"
-//    }
-//  }
 }
 
 // self signed cert - used when no real certificate is set
