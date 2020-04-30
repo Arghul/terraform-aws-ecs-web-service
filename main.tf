@@ -190,20 +190,13 @@ resource "aws_alb_listener" "https" {
   port              = "443"
   protocol          = "HTTPS"
 
-  //  certificate_arn = var.ssl_certificate_arn != "" ? var.ssl_certificate_arn : aws_acm_certificate.main[0].arn
+  certificate_arn = var.ssl_certificate_arn != "" ? var.ssl_certificate_arn : aws_acm_certificate.main[0].arn
 
   default_action {
     target_group_arn = aws_alb_target_group.main[count.index].id
     type             = "forward"
   }
 
-}
-
-resource "aws_alb_listener_certificate" "cert" {
-  count = var.enable ? 1 : 0
-
-  certificate_arn = var.ssl_certificate_arn != "" ? var.ssl_certificate_arn : aws_acm_certificate.main[0].arn
-  listener_arn    = aws_alb_listener.https[0].arn
 }
 
 #
