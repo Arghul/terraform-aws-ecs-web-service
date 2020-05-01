@@ -50,12 +50,19 @@ variable "tags" {
 variable "short_name" {
   description = "Whether to use a short name for service or long (namespace-environment-(stage)-(attributes)-name)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "vpc_id" {
   description = "VPC Id"
   type        = string
+  default     = ""
+}
+
+variable "vpc_name" {
+  description = "VPC name"
+  type        = string
+  default     = ""
 }
 
 variable "security_group_ids" {
@@ -67,6 +74,7 @@ variable "security_group_ids" {
 variable "public_subnet_ids" {
   description = "Subnet ids to launch ALBs into"
   type        = list
+  default     = []
 }
 
 variable "access_log_bucket" {
@@ -105,11 +113,11 @@ variable "alb_target_group_port" {
   default     = 80
 }
 
-variable "ssl_certificate_arn" {
-  description = "SSL certificate arn"
-  type        = string
-  default     = ""
-}
+//variable "ssl_certificate_arn" {
+//  description = "SSL certificate arn"
+//  type        = string
+//  default     = ""
+//}
 
 variable "cluster_name" {
   description = "ECS cluster name"
@@ -213,6 +221,30 @@ variable "log_retention_in_days" {
   description = "Log retention"
   type        = string
   default     = 3
+}
+
+variable "dns_zone_name" {
+  description = "DNS zone name to use"
+  type = string
+  default = ""
+}
+
+variable "dns_name" {
+  description = "DNS name to use. Default to use service name"
+  type = string
+  default = ""
+}
+
+variable "dns_record_ttl" {
+  description = "DNS record ttl. Default 10 min"
+  type = string
+  default = "10"
+}
+
+variable "self_signed_cert" {
+  description = "Whether to use self signed or generate a real certificate. Default self signed"
+  type = bool
+  default = true
 }
 
 variable "volume" {

@@ -1,6 +1,10 @@
 locals {
-  name              = var.short_name ? module.label.name : module.label.id
-  access_log_prefix = var.access_log_prefix == "" ? local.name : var.access_log_prefix
+  name                          = var.short_name ? module.label.name : module.label.id
+  access_log_prefix             = var.access_log_prefix == "" ? local.name : var.access_log_prefix
+  self_signed_cert_common_name  = "${local.name}-example.com"
+  self_signed_cert_organization = "Dummy cert - use it for testing only"
+  vpc_id                        = var.vpc_id != "" ? var.vpc_id : data.aws_vpc.main.id
+  public_subnet_ids             = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : data.aws_subnet_ids.public_subnets.ids
 }
 
 module "label" {
@@ -52,6 +56,79 @@ module "service_role" {
 
 }
 
+module "cert" {
+  source = "git::https://github.com/arghul/terraform-aws-acm.git?ref=tags/0.1.1"
+
+  enable      = var.self_signed_cert == false && var.dns_zone_name != "" ? true : false
+  namespace   = var.namespace
+  stage       = var.stage
+  environment = var.environment
+  attributes  = var.attributes
+  name        = "${local.name}.${var.dns_zone_name}"
+}
+
+#
+# Network
+#
+data "aws_vpc" "main" {
+  filter {
+    name = "tag:Name"
+    values = [
+      var.vpc_name
+    ]
+  }
+}
+
+data "aws_subnet_ids" "public_subnets" {
+  vpc_id = data.aws_vpc.main.id
+
+  filter {
+    name = "tag:Namespace"
+    values = [
+      var.namespace
+    ]
+  }
+
+  filter {
+    name = "tag:Environment"
+    values = [
+      var.environment
+    ]
+  }
+
+  filter {
+    name = "tag:Type"
+    values = [
+      "public"
+    ]
+  }
+}
+
+data "aws_security_groups" "ecs" {
+
+  filter {
+    name = "tag:Namespace"
+    values = [
+      var.namespace
+    ]
+  }
+
+  filter {
+    name = "tag:Environment"
+    values = [
+      var.environment
+    ]
+  }
+
+  filter {
+    name = "tag:Name"
+    values = [
+      "${var.cluster_name}-sg"
+    ]
+  }
+
+}
+
 
 #
 # Security group resources
@@ -60,7 +137,7 @@ resource "aws_security_group" "main" {
   count = var.enable ? 1 : 0
 
   name   = "${local.name}-sg"
-  vpc_id = var.vpc_id
+  vpc_id = local.vpc_id
   tags   = module.label.tags
 }
 
@@ -95,8 +172,8 @@ resource "aws_alb" "main" {
   count = var.enable ? 1 : 0
 
   name            = "${local.name}-alb"
-  security_groups = concat(var.security_group_ids, list(aws_security_group.main[count.index].id))
-  subnets         = var.public_subnet_ids
+  security_groups = concat(var.security_group_ids, data.aws_security_groups.ecs.ids, list(aws_security_group.main[count.index].id))
+  subnets         = local.public_subnet_ids
 
 
   access_logs {
@@ -125,7 +202,7 @@ resource "aws_alb_target_group" "main" {
 
   port     = var.alb_target_group_port
   protocol = "HTTP"
-  vpc_id   = var.vpc_id
+  vpc_id   = local.vpc_id
 
   tags = module.label.tags
 
@@ -152,20 +229,19 @@ resource "aws_alb_listener" "http" {
   }
 }
 
-// self signed cert - used when no real certificate is set
 resource "tls_private_key" "main" {
-  count     = var.enable ? 1 : 0
+  count     = var.enable && var.self_signed_cert ? 1 : 0
   algorithm = "RSA"
 }
 
 resource "tls_self_signed_cert" "main" {
-  count           = var.enable ? 1 : 0
+  count           = var.enable && var.self_signed_cert ? 1 : 0
   key_algorithm   = "RSA"
   private_key_pem = tls_private_key.main[0].private_key_pem
 
   subject {
-    common_name  = "example.com"
-    organization = "Example, Inc"
+    common_name  = local.self_signed_cert_common_name
+    organization = local.self_signed_cert_organization
   }
 
   validity_period_hours = 168
@@ -178,9 +254,13 @@ resource "tls_self_signed_cert" "main" {
 }
 
 resource "aws_acm_certificate" "main" {
-  count            = var.enable ? 1 : 0
+  count            = var.enable && var.self_signed_cert? 1 : 0
   private_key      = tls_private_key.main[0].private_key_pem
   certificate_body = tls_self_signed_cert.main[0].cert_pem
+
+  tags = merge(module.label.tags, {
+    Name = local.self_signed_cert_common_name
+  })
 }
 
 resource "aws_alb_listener" "https" {
@@ -190,13 +270,32 @@ resource "aws_alb_listener" "https" {
   port              = "443"
   protocol          = "HTTPS"
 
-  certificate_arn = var.ssl_certificate_arn != "" ? var.ssl_certificate_arn : aws_acm_certificate.main[0].arn
+  certificate_arn = var.self_signed_cert ? aws_acm_certificate.main[0].arn : module.cert.arn
 
   default_action {
     target_group_arn = aws_alb_target_group.main[count.index].id
     type             = "forward"
   }
 
+}
+
+#
+# DNS setup
+#
+data "aws_route53_zone" "main" {
+  count = var.enable && var.dns_zone_name != "" ? 1 : 0
+
+  name = var.dns_zone_name
+}
+
+resource "aws_route53_record" "main" {
+  count   = var.enable && var.dns_zone_name != "" ? 1 : 0
+
+  zone_id = data.aws_route53_zone.main[0].zone_id
+  name    = var.dns_name != "" ? var.dns_name : local.name
+  type    = "CNAME"
+  ttl     = var.dns_record_ttl
+  records = [aws_alb.main[0].dns_name]
 }
 
 #
