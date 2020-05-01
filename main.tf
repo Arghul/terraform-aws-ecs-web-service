@@ -20,7 +20,7 @@ module "label" {
 
 module "service_role" {
   source = "git::https://github.com/netf/terraform-aws-iam-role.git?ref=master"
-  name   = "${local.name}-service-role"
+  name   = "${module.label.id}-service-role"
 
   allow_service = "ecs.amazonaws.com"
 
@@ -136,7 +136,7 @@ data "aws_security_groups" "ecs" {
 resource "aws_security_group" "main" {
   count = var.enable ? 1 : 0
 
-  name   = "${local.name}-sg"
+  name   = "${module.label.id}-sg"
   vpc_id = local.vpc_id
   tags   = module.label.tags
 }
@@ -144,7 +144,7 @@ resource "aws_security_group" "main" {
 resource "aws_security_group_rule" "http" {
   count = var.enable ? 1 : 0
 
-  description       = "Managed by terraform"
+  description       = "Allow port HTTP to ${module.label.id} - Managed by terraform"
   type              = "ingress"
   security_group_id = aws_security_group.main[count.index].id
   protocol          = "tcp"
@@ -156,7 +156,7 @@ resource "aws_security_group_rule" "http" {
 resource "aws_security_group_rule" "https" {
   count = var.enable ? 1 : 0
 
-  description       = "Managed by terraform"
+  description       = "Allow port HTTPS to ${module.label.id} - Managed by terraform"
   type              = "ingress"
   security_group_id = aws_security_group.main[count.index].id
   protocol          = "tcp"
@@ -171,7 +171,7 @@ resource "aws_security_group_rule" "https" {
 resource "aws_alb" "main" {
   count = var.enable ? 1 : 0
 
-  name            = "${local.name}-alb"
+  name            = "${module.label.id}-alb"
   security_groups = concat(var.security_group_ids, data.aws_security_groups.ecs.ids, list(aws_security_group.main[count.index].id))
   subnets         = local.public_subnet_ids
 
@@ -179,7 +179,7 @@ resource "aws_alb" "main" {
   access_logs {
     enabled = var.access_log_bucket != "" ? true : false
     bucket  = var.access_log_bucket
-    prefix  = "${local.access_log_prefix}-${local.name}"
+    prefix  = "${local.access_log_prefix}-${module.label.id}"
   }
 
   tags = module.label.tags
@@ -188,7 +188,7 @@ resource "aws_alb" "main" {
 resource "aws_alb_target_group" "main" {
   count = var.enable ? 1 : 0
 
-  name = "${local.name}-alb-tg"
+  name = "${module.label.id}-alb-tg"
 
   health_check {
     healthy_threshold   = var.health_check_healthy_threshold
@@ -359,7 +359,7 @@ resource "aws_ecs_task_definition" "main" {
 }
 
 resource "aws_cloudwatch_log_group" "app" {
-  name              = local.name
+  name              = module.label.id
   tags              = module.label.tags
   retention_in_days = var.log_retention_in_days
 }
@@ -414,7 +414,7 @@ resource "aws_appautoscaling_target" "main" {
 resource "aws_appautoscaling_policy" "up" {
   count = var.enable ? 1 : 0
 
-  name               = "${local.name}-aap-up"
+  name               = "${module.label.id}-aap-up"
   service_namespace  = "ecs"
   resource_id        = "service/${var.cluster_name}/${aws_ecs_service.main[count.index].name}"
   scalable_dimension = "ecs:service:DesiredCount"
@@ -438,7 +438,7 @@ resource "aws_appautoscaling_policy" "up" {
 resource "aws_appautoscaling_policy" "down" {
   count = var.enable ? 1 : 0
 
-  name               = "${local.name}-aap-down"
+  name               = "${module.label.id}-aap-down"
   service_namespace  = "ecs"
   resource_id        = "service/${var.cluster_name}/${aws_ecs_service.main[count.index].name}"
   scalable_dimension = "ecs:service:DesiredCount"
@@ -462,7 +462,7 @@ resource "aws_appautoscaling_policy" "down" {
 resource "aws_cloudwatch_metric_alarm" "app_service_high_cpu" {
   count = var.enable ? 1 : 0
 
-  alarm_name          = "${local.name}-alarmCPUUtilizationHigh"
+  alarm_name          = "${module.label.id}-alarmCPUUtilizationHigh"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "1"
   metric_name         = "CPUUtilization"
@@ -483,7 +483,7 @@ resource "aws_cloudwatch_metric_alarm" "app_service_high_cpu" {
 resource "aws_cloudwatch_metric_alarm" "app_service_low_cpu" {
   count = var.enable ? 1 : 0
 
-  alarm_name          = "${local.name}-alarmCPUUtilizationLow"
+  alarm_name          = "${module.label.id}-alarmCPUUtilizationLow"
   comparison_operator = "LessThanOrEqualToThreshold"
   evaluation_periods  = "1"
   metric_name         = "CPUUtilization"
