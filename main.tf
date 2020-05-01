@@ -144,7 +144,7 @@ resource "aws_security_group" "main" {
 resource "aws_security_group_rule" "http" {
   count = var.enable ? 1 : 0
 
-  description       = "Allow port HTTP to ${module.label.id} - Managed by terraform"
+  description       = "Managed by terraform"
   type              = "ingress"
   security_group_id = aws_security_group.main[count.index].id
   protocol          = "tcp"
@@ -156,7 +156,7 @@ resource "aws_security_group_rule" "http" {
 resource "aws_security_group_rule" "https" {
   count = var.enable ? 1 : 0
 
-  description       = "Allow port HTTPS to ${module.label.id} - Managed by terraform"
+  description       = "Managed by terraform"
   type              = "ingress"
   security_group_id = aws_security_group.main[count.index].id
   protocol          = "tcp"
