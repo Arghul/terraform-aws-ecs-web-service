@@ -62,7 +62,7 @@ module "cert" {
   stage       = var.stage
   environment = var.environment
   attributes  = var.attributes
-  name        = "${local.name}.${var.dns_zone_name}"
+  name        = var.dns_name != "" ? "${var.dns_name}.${var.dns_zone_name}" : "${local.name}.${var.dns_zone_name}"
 }
 
 #
