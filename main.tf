@@ -1,10 +1,8 @@
 locals {
-  name                          = var.short_name ? module.label.name : module.label.id
-  access_log_prefix             = var.access_log_prefix == "" ? local.name : var.access_log_prefix
-//  self_signed_cert_common_name  = module.label.id
-//  self_signed_cert_organization = "Dummy cert - use it for testing only"
-  vpc_id                        = data.aws_vpc.main.id
-  public_subnet_ids             = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : data.aws_subnet_ids.public_subnets.ids
+  name              = var.short_name ? module.label.name : module.label.id
+  access_log_prefix = var.access_log_prefix == "" ? local.name : var.access_log_prefix
+  vpc_id            = data.aws_vpc.main.id
+  public_subnet_ids = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : data.aws_subnet_ids.public_subnets.ids
 }
 
 module "label" {
@@ -220,7 +218,7 @@ resource "aws_alb_listener" "http" {
   protocol          = "HTTP"
 
   dynamic "default_action" {
-    for_each = var.use_ssl ? [ 1 ] : []
+    for_each = var.use_ssl ? [1] : []
     content {
       type = "redirect"
       redirect {
@@ -231,55 +229,13 @@ resource "aws_alb_listener" "http" {
     }
   }
   dynamic "default_action" {
-    for_each = !var.use_ssl ? [ 1 ] : []
+    for_each = ! var.use_ssl ? [1] : []
     content {
       target_group_arn = aws_alb_target_group.main[count.index].id
       type             = "forward"
     }
   }
-//  default_action {
-//    type = "redirect"
-//    redirect {
-//      port        = "443"
-//      protocol    = "HTTPS"
-//      status_code = "HTTP_301"
-//    }
-//  }
 }
-
-//resource "tls_private_key" "main" {
-//  count     = var.enable && var.use_ssl ? 1 : 0
-//  algorithm = "RSA"
-//}
-//
-//resource "tls_self_signed_cert" "main" {
-//  count           = var.enable && var.use_ssl ? 1 : 0
-//  key_algorithm   = "RSA"
-//  private_key_pem = tls_private_key.main[0].private_key_pem
-//
-//  subject {
-//    common_name  = local.self_signed_cert_common_name
-//    organization = local.self_signed_cert_organization
-//  }
-//
-//  validity_period_hours = 168
-//
-//  allowed_uses = [
-//    "key_encipherment",
-//    "digital_signature",
-//    "server_auth",
-//  ]
-//}
-//
-//resource "aws_acm_certificate" "main" {
-//  count            = var.enable && var.use_ssl ? 1 : 0
-//  private_key      = tls_private_key.main[0].private_key_pem
-//  certificate_body = tls_self_signed_cert.main[0].cert_pem
-//
-//  tags = merge(module.label.tags, {
-//    Name = local.self_signed_cert_common_name
-//  })
-//}
 
 resource "aws_alb_listener" "https" {
   count = var.enable && var.use_ssl ? 1 : 0
@@ -288,7 +244,6 @@ resource "aws_alb_listener" "https" {
   port              = "443"
   protocol          = "HTTPS"
 
-//  certificate_arn = var.self_signed_cert ? aws_acm_certificate.main[0].arn : module.cert.arn
   certificate_arn = module.cert.arn
 
   default_action {
@@ -308,7 +263,7 @@ data "aws_route53_zone" "main" {
 }
 
 resource "aws_route53_record" "main" {
-  count   = var.enable && var.dns_zone_name != "" ? 1 : 0
+  count = var.enable && var.dns_zone_name != "" ? 1 : 0
 
   zone_id = data.aws_route53_zone.main[0].zone_id
   name    = var.dns_name != "" ? var.dns_name : local.name
@@ -320,11 +275,6 @@ resource "aws_route53_record" "main" {
 #
 # ECS resources
 #
-
-//resource "aws_efs_file_system" "fs" {
-//  count = var.enable && length(local.tasks) > 0 ? 1 : 0
-//  creation_token = sha256(module.label.id)
-//}
 
 resource "aws_ecs_task_definition" "main" {
   count = var.enable ? 1 : 0
@@ -339,37 +289,6 @@ resource "aws_ecs_task_definition" "main" {
     region      = var.region
     volume_type = var.volume.type
   })
-
-  //  dynamic "volume" {
-  //    for_each = local.tasks[count.index].volume.type == "efs" ? [ 1 ] : []
-  //    content {
-  //      name = "storage-${local.tasks[count.index].name}"
-  //      docker_volume_configuration {
-  //        scope         = "shared"
-  //        autoprovision = true
-  //        driver        = "local"
-  //
-  //        driver_opts = {
-  //          "type"   = "nfs4"
-  //          "device" = "${aws_efs_file_system.fs[0].dns_name}:/${local.tasks[count.index].name}"
-  //          "o"      = "addr=${aws_efs_file_system.fs[0].dns_name},nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport"
-  //        }
-  //      }
-  //    }
-  //  }
-
-  //  volume {
-  //    name = "rexray-vol-${count.index}"
-  //    docker_volume_configuration {
-  //      autoprovision = true
-  //      scope = "shared"
-  //      driver = "rexray/ebs"
-  //      driver_opts = {
-  //        volumetype = "gp2"
-  //        size = "5"
-  //      }
-  //    }
-  //  }
 
   lifecycle {
     create_before_destroy = true

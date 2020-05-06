@@ -225,20 +225,20 @@ variable "log_retention_in_days" {
 
 variable "dns_zone_name" {
   description = "DNS zone name to use"
-  type = string
-  default = ""
+  type        = string
+  default     = ""
 }
 
 variable "dns_name" {
   description = "DNS name to use. Default to use service name"
-  type = string
-  default = ""
+  type        = string
+  default     = ""
 }
 
 variable "dns_record_ttl" {
   description = "DNS record ttl. Default 10 min"
-  type = string
-  default = "10"
+  type        = string
+  default     = "10"
 }
 
 //variable "self_signed_cert" {
@@ -249,8 +249,8 @@ variable "dns_record_ttl" {
 
 variable "use_ssl" {
   description = "To enable SSL"
-  type = bool
-  default = true
+  type        = bool
+  default     = true
 }
 
 variable "volume" {
