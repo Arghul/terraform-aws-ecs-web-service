@@ -306,6 +306,10 @@ data "aws_ecs_task_definition" "main" {
   count = var.enable ? 1 : 0
 
   task_definition = aws_ecs_task_definition.main[count.index].family
+
+  depends_on = [
+    "aws_ecs_task_definition.main"
+  ]
 }
 
 resource "aws_ecs_service" "main" {
