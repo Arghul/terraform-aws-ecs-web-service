@@ -1,8 +1,8 @@
 locals {
   name                          = var.short_name ? module.label.name : module.label.id
   access_log_prefix             = var.access_log_prefix == "" ? local.name : var.access_log_prefix
-  self_signed_cert_common_name  = module.label.id
-  self_signed_cert_organization = "Dummy cert - use it for testing only"
+//  self_signed_cert_common_name  = module.label.id
+//  self_signed_cert_organization = "Dummy cert - use it for testing only"
   vpc_id                        = data.aws_vpc.main.id
   public_subnet_ids             = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : data.aws_subnet_ids.public_subnets.ids
 }
@@ -59,7 +59,7 @@ module "service_role" {
 module "cert" {
   source = "git::https://github.com/arghul/terraform-aws-acm.git?ref=tags/0.1.1"
 
-  enable      = var.self_signed_cert == false && var.dns_zone_name != "" ? true : false
+  enable      = var.use_ssl && var.dns_zone_name != "" ? true : false
   namespace   = var.namespace
   stage       = var.stage
   environment = var.environment
@@ -219,58 +219,77 @@ resource "aws_alb_listener" "http" {
   port              = "80"
   protocol          = "HTTP"
 
-  default_action {
-    type = "redirect"
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
+  dynamic "default_action" {
+    for_each = var.use_ssl ? [ 1 ] : []
+    content {
+      type = "redirect"
+      redirect {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
     }
   }
-}
-
-resource "tls_private_key" "main" {
-  count     = var.enable && var.self_signed_cert ? 1 : 0
-  algorithm = "RSA"
-}
-
-resource "tls_self_signed_cert" "main" {
-  count           = var.enable && var.self_signed_cert ? 1 : 0
-  key_algorithm   = "RSA"
-  private_key_pem = tls_private_key.main[0].private_key_pem
-
-  subject {
-    common_name  = local.self_signed_cert_common_name
-    organization = local.self_signed_cert_organization
+  dynamic "default_action" {
+    for_each = !var.use_ssl ? [ 1 ] : []
+    content {
+      target_group_arn = aws_alb_target_group.main[count.index].id
+      type             = "forward"
+    }
   }
-
-  validity_period_hours = 168
-
-  allowed_uses = [
-    "key_encipherment",
-    "digital_signature",
-    "server_auth",
-  ]
+//  default_action {
+//    type = "redirect"
+//    redirect {
+//      port        = "443"
+//      protocol    = "HTTPS"
+//      status_code = "HTTP_301"
+//    }
+//  }
 }
 
-resource "aws_acm_certificate" "main" {
-  count            = var.enable && var.self_signed_cert? 1 : 0
-  private_key      = tls_private_key.main[0].private_key_pem
-  certificate_body = tls_self_signed_cert.main[0].cert_pem
-
-  tags = merge(module.label.tags, {
-    Name = local.self_signed_cert_common_name
-  })
-}
+//resource "tls_private_key" "main" {
+//  count     = var.enable && var.use_ssl ? 1 : 0
+//  algorithm = "RSA"
+//}
+//
+//resource "tls_self_signed_cert" "main" {
+//  count           = var.enable && var.use_ssl ? 1 : 0
+//  key_algorithm   = "RSA"
+//  private_key_pem = tls_private_key.main[0].private_key_pem
+//
+//  subject {
+//    common_name  = local.self_signed_cert_common_name
+//    organization = local.self_signed_cert_organization
+//  }
+//
+//  validity_period_hours = 168
+//
+//  allowed_uses = [
+//    "key_encipherment",
+//    "digital_signature",
+//    "server_auth",
+//  ]
+//}
+//
+//resource "aws_acm_certificate" "main" {
+//  count            = var.enable && var.use_ssl ? 1 : 0
+//  private_key      = tls_private_key.main[0].private_key_pem
+//  certificate_body = tls_self_signed_cert.main[0].cert_pem
+//
+//  tags = merge(module.label.tags, {
+//    Name = local.self_signed_cert_common_name
+//  })
+//}
 
 resource "aws_alb_listener" "https" {
-  count = var.enable ? 1 : 0
+  count = var.enable && var.use_ssl ? 1 : 0
 
   load_balancer_arn = aws_alb.main[count.index].id
   port              = "443"
   protocol          = "HTTPS"
 
-  certificate_arn = var.self_signed_cert ? aws_acm_certificate.main[0].arn : module.cert.arn
+//  certificate_arn = var.self_signed_cert ? aws_acm_certificate.main[0].arn : module.cert.arn
+  certificate_arn = module.cert.arn
 
   default_action {
     target_group_arn = aws_alb_target_group.main[count.index].id

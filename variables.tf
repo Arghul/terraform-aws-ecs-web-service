@@ -241,8 +241,14 @@ variable "dns_record_ttl" {
   default = "10"
 }
 
-variable "self_signed_cert" {
-  description = "Whether to use self signed or generate a real certificate. Default self signed"
+//variable "self_signed_cert" {
+//  description = "Whether to use self signed or generate a real certificate. Default self signed"
+//  type = bool
+//  default = true
+//}
+
+variable "use_ssl" {
+  description = "To enable SSL"
   type = bool
   default = true
 }
