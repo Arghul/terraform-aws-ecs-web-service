@@ -308,7 +308,7 @@ data "aws_ecs_task_definition" "main" {
   task_definition = aws_ecs_task_definition.main[count.index].family
 
   depends_on = [
-    "aws_ecs_task_definition.main"
+    aws_ecs_task_definition.main
   ]
 }
 
