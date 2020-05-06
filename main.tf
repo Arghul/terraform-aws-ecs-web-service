@@ -154,7 +154,7 @@ resource "aws_security_group_rule" "http" {
 }
 
 resource "aws_security_group_rule" "https" {
-  count = var.enable ? 1 : 0
+  count = var.enable && var.use_ssl ? 1 : 0
 
   description       = "Managed by terraform"
   type              = "ingress"
@@ -378,7 +378,7 @@ resource "aws_ecs_task_definition" "main" {
 }
 
 resource "aws_cloudwatch_log_group" "app" {
-  name              = module.label.id
+  name              = local.name
   tags              = module.label.tags
   retention_in_days = var.log_retention_in_days
 }
