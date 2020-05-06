@@ -3,7 +3,7 @@ locals {
   access_log_prefix             = var.access_log_prefix == "" ? local.name : var.access_log_prefix
   self_signed_cert_common_name  = module.label.id
   self_signed_cert_organization = "Dummy cert - use it for testing only"
-  vpc_id                        = var.vpc_id != "" ? var.vpc_id : data.aws_vpc.main.id
+  vpc_id                        = data.aws_vpc.main.id
   public_subnet_ids             = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : data.aws_subnet_ids.public_subnets.ids
 }
 
