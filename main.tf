@@ -70,7 +70,7 @@ module "execution_role" {
   enabled        = var.enable
   name           = "${module.label.id}-execution-role"
   allow_service  = "ecs-tasks.amazonaws.com"
-  policy_managed = var.task_execution_role_policy_managed
+  policy_managed = concat(["AmazonEC2ContainerRegistryReadOnly", "CloudWatchLogsFullAccess" ], var.task_execution_role_policy_managed)
   policy_inline  = var.task_execution_role_policy_inline
   tags = merge(module.label.tags, {
     Name = "${module.label.id}-execution-role"

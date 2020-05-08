@@ -347,9 +347,7 @@ variable "task_execution_role_policy_inline" {
 variable "task_execution_role_policy_managed" {
   type        = list(string)
   description = "Task execution role managed policies"
-  default = [
-    "AmazonSSMFullAccess"
-  ]
+  default = []
 }
 
 # Cloudwatch Logging
