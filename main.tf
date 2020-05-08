@@ -1,8 +1,18 @@
 locals {
-  name              = var.short_name ? module.label.name : module.label.id
-  access_log_prefix = var.access_log_prefix == "" ? local.name : var.access_log_prefix
+  access_log_prefix = var.access_log_prefix == "" ? module.label.id : var.access_log_prefix
   vpc_id            = data.aws_vpc.main.id
   public_subnet_ids = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : data.aws_subnet_ids.public_subnets.ids
+
+  init_container_definitions = [
+    for init_container in var.init_containers : lookup(init_container, "container_definition")
+  ]
+  container_depends_on = [
+    for init_container in var.init_containers :
+    {
+      containerName = lookup(jsondecode(init_container.container_definition), "name"),
+      condition     = init_container.condition
+    }
+  ]
 }
 
 module "label" {
@@ -54,6 +64,19 @@ module "service_role" {
 
 }
 
+module "execution_role" {
+  source = "git::https://github.com/netf/terraform-aws-iam-role.git?ref=master"
+
+  enabled        = var.enable
+  name           = "${module.label.id}-execution-role"
+  allow_service  = "ecs-tasks.amazonaws.com"
+  policy_managed = var.task_execution_role_policy_managed
+  policy_inline  = var.task_execution_role_policy_inline
+  tags = merge(module.label.tags, {
+    Name = "${module.label.id}-execution-role"
+  })
+}
+
 module "cert" {
   source = "git::https://github.com/arghul/terraform-aws-acm.git?ref=tags/0.1.1"
 
@@ -62,71 +85,36 @@ module "cert" {
   stage       = var.stage
   environment = var.environment
   attributes  = var.attributes
-  name        = var.dns_name != "" ? "${var.dns_name}.${var.dns_zone_name}" : "${local.name}.${var.dns_zone_name}"
+  name        = var.dns_name != "" ? "${var.dns_name}.${var.dns_zone_name}" : "${module.label.name}.${var.dns_zone_name}"
 }
 
-#
-# Network
-#
-data "aws_vpc" "main" {
-  filter {
-    name = "tag:Name"
-    values = [
-      var.vpc_name
-    ]
+module "container_definition" {
+  source                       = "git::https://github.com/cloudposse/terraform-aws-ecs-container-definition.git?ref=tags/0.23.0"
+  container_name               = module.label.id
+  container_image              = var.container_image
+  container_memory             = var.container_memory
+  container_memory_reservation = var.container_memory_reservation
+  container_cpu                = var.container_cpu
+  healthcheck                  = var.container_healthcheck
+  environment                  = var.container_environment
+  port_mappings                = var.container_port_mappings
+  secrets                      = var.container_secrets
+  ulimits                      = var.container_ulimits
+  entrypoint                   = var.container_entrypoint
+  command                      = var.container_command
+  mount_points                 = var.container_mount_points
+  container_depends_on         = local.container_depends_on
+
+  log_configuration = {
+    logDriver = var.log_driver
+    options = {
+      "awslogs-region"        = var.aws_logs_region
+      "awslogs-group"         = aws_cloudwatch_log_group.app.name
+      "awslogs-stream-prefix" = var.name
+    }
+    secretOptions = null
   }
 }
-
-data "aws_subnet_ids" "public_subnets" {
-  vpc_id = data.aws_vpc.main.id
-
-  filter {
-    name = "tag:Namespace"
-    values = [
-      var.namespace
-    ]
-  }
-
-  filter {
-    name = "tag:Environment"
-    values = [
-      var.environment
-    ]
-  }
-
-  filter {
-    name = "tag:Type"
-    values = [
-      "public"
-    ]
-  }
-}
-
-data "aws_security_groups" "ecs" {
-
-  filter {
-    name = "tag:Namespace"
-    values = [
-      var.namespace
-    ]
-  }
-
-  filter {
-    name = "tag:Environment"
-    values = [
-      var.environment
-    ]
-  }
-
-  filter {
-    name = "tag:Name"
-    values = [
-      "${var.cluster_name}-sg"
-    ]
-  }
-
-}
-
 
 #
 # Security group resources
@@ -189,13 +177,13 @@ resource "aws_alb_target_group" "main" {
   name = "${module.label.id}-alb-tg"
 
   health_check {
-    healthy_threshold   = var.health_check_healthy_threshold
-    interval            = var.health_check_interval
-    protocol            = "HTTP"
-    matcher             = "200"
-    timeout             = "3"
-    path                = var.health_check_path
-    unhealthy_threshold = "2"
+    healthy_threshold   = var.alb_health_check.healthy_threshold
+    unhealthy_threshold = var.alb_health_check.unhealthy_threshold
+    interval            = var.alb_health_check.interval
+    protocol            = var.alb_health_check.protocol
+    matcher             = var.alb_health_check.matcher
+    timeout             = var.alb_health_check.timeout
+    path                = var.alb_health_check.path
   }
 
   port     = var.alb_target_group_port
@@ -266,7 +254,7 @@ resource "aws_route53_record" "main" {
   count = var.enable && var.dns_zone_name != "" ? 1 : 0
 
   zone_id = data.aws_route53_zone.main[0].zone_id
-  name    = var.dns_name != "" ? var.dns_name : local.name
+  name    = var.dns_name != "" ? var.dns_name : module.label.name
   type    = "CNAME"
   ttl     = var.dns_record_ttl
   records = [aws_alb.main[0].dns_name]
@@ -279,16 +267,9 @@ resource "aws_route53_record" "main" {
 resource "aws_ecs_task_definition" "main" {
   count = var.enable ? 1 : 0
 
-  family = local.name
-  container_definitions = templatefile("${path.module}/task-definition.json", {
-    name        = local.name
-    image       = var.task_image
-    cpu         = var.task_cpu
-    mem         = var.task_mem
-    port        = var.container_port
-    region      = var.region
-    volume_type = var.volume.type
-  })
+  family                = module.label.id
+  container_definitions = "[${join(",", concat(local.init_container_definitions, [module.container_definition.json_map]))}]"
+  execution_role_arn    = module.execution_role.role_arn
 
   lifecycle {
     create_before_destroy = true
@@ -297,7 +278,7 @@ resource "aws_ecs_task_definition" "main" {
 }
 
 resource "aws_cloudwatch_log_group" "app" {
-  name              = local.name
+  name              = module.label.id
   tags              = module.label.tags
   retention_in_days = var.log_retention_in_days
 }
@@ -315,7 +296,7 @@ data "aws_ecs_task_definition" "main" {
 resource "aws_ecs_service" "main" {
   count = var.enable ? 1 : 0
 
-  name                               = local.name
+  name                               = module.label.id
   cluster                            = var.cluster_name
   task_definition                    = "${aws_ecs_task_definition.main[count.index].family}:${max(aws_ecs_task_definition.main[count.index].revision, data.aws_ecs_task_definition.main[count.index].revision)}"
   desired_count                      = var.desired_count
@@ -326,12 +307,15 @@ resource "aws_ecs_service" "main" {
 
   load_balancer {
     target_group_arn = aws_alb_target_group.main[count.index].id
-    container_name   = local.name
+    container_name   = module.label.id
     container_port   = var.container_port
   }
 
   lifecycle {
     create_before_destroy = true
+    ignore_changes = [
+      task_definition
+    ]
   }
 
 }
@@ -415,7 +399,7 @@ resource "aws_cloudwatch_metric_alarm" "app_service_high_cpu" {
 
   dimensions = {
     ClusterName = var.cluster_name
-    ServiceName = local.name
+    ServiceName = module.label.id
   }
 
   alarm_actions = [aws_appautoscaling_policy.up[count.index].arn]
@@ -436,7 +420,7 @@ resource "aws_cloudwatch_metric_alarm" "app_service_low_cpu" {
 
   dimensions = {
     ClusterName = var.cluster_name
-    ServiceName = local.name
+    ServiceName = module.label.id
   }
 
   alarm_actions = [aws_appautoscaling_policy.down[count.index].arn]

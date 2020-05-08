@@ -4,12 +4,7 @@ variable "enable" {
   default     = true
 }
 
-variable "region" {
-  description = "AWS region"
-  type        = string
-  default     = "eu-west-1"
-}
-
+# Label
 variable "name" {
   description = "Service name"
 }
@@ -47,10 +42,10 @@ variable "tags" {
   default     = {}
 }
 
-variable "short_name" {
-  description = "Whether to use a short name for service or long (namespace-environment-(stage)-(attributes)-name)"
-  type        = bool
-  default     = true
+# Cluster && Network
+variable "cluster_name" {
+  description = "ECS cluster name"
+  type        = string
 }
 
 variable "vpc_id" {
@@ -65,18 +60,51 @@ variable "vpc_name" {
   default     = ""
 }
 
-variable "security_group_ids" {
-  description = "List of security groups to assign to ALB, ie: ecs cluster sg"
-  type        = list
-  default     = []
-}
-
 variable "public_subnet_ids" {
   description = "Subnet ids to launch ALBs into"
   type        = list
   default     = []
 }
 
+variable "security_group_ids" {
+  description = "List of security groups to assign to ALB, ie: ecs cluster sg"
+  type        = list
+  default     = []
+}
+
+variable "allow_cidr_blocks" {
+  description = "CIDR blocks to allow access the service"
+  type        = list(string)
+  default = [
+    "0.0.0.0/0"
+  ]
+}
+
+variable "dns_zone_name" {
+  description = "DNS zone name to use"
+  type        = string
+  default     = ""
+}
+
+variable "dns_name" {
+  description = "DNS name to use. Default to use service name"
+  type        = string
+  default     = ""
+}
+
+variable "dns_record_ttl" {
+  description = "DNS record ttl. Default 10 min"
+  type        = string
+  default     = "10"
+}
+
+variable "use_ssl" {
+  description = "To enable SSL"
+  type        = bool
+  default     = true
+}
+
+# ALB
 variable "access_log_bucket" {
   description = "ALB access log bucket"
   type        = string
@@ -89,22 +117,25 @@ variable "access_log_prefix" {
   default     = ""
 }
 
-variable "health_check_path" {
-  description = "Health check path"
-  type        = string
-  default     = "/"
-}
-
-variable "health_check_healthy_threshold" {
-  description = "Health check healthy threshold"
-  type        = string
-  default     = "3"
-}
-
-variable "health_check_interval" {
-  description = "Health check interval"
-  type        = string
-  default     = "30"
+variable "alb_health_check" {
+  type = object({
+    healthy_threshold   = number
+    interval            = number
+    protocol            = string
+    matcher             = number
+    timeout             = number
+    unhealthy_threshold = number
+    path                = string
+  })
+  default = {
+    healthy_threshold   = 3
+    interval            = 30
+    protocol            = "HTTP"
+    matcher             = 200
+    timeout             = 3
+    path                = "/"
+    unhealthy_threshold = 2
+  }
 }
 
 variable "alb_target_group_port" {
@@ -113,18 +144,7 @@ variable "alb_target_group_port" {
   default     = 80
 }
 
-//variable "ssl_certificate_arn" {
-//  description = "SSL certificate arn"
-//  type        = string
-//  default     = ""
-//}
-
-variable "cluster_name" {
-  description = "ECS cluster name"
-  type        = string
-}
-
-
+# Deployment && Scaling
 variable "deployment_min_healthy_percent" {
   description = "Minimum service healthy percent before deployment"
   default     = "100"
@@ -135,18 +155,6 @@ variable "deployment_max_percent" {
   description = "Maximum service percent during deployment"
   default     = "200"
   type        = string
-}
-
-variable "container_port" {
-  description = "Port on which service is running in a container"
-  type        = number
-  default     = 80
-}
-
-variable "container_definitions" {
-  description = "Container definitions specification in json format"
-  type        = string
-  default     = ""
 }
 
 variable "desired_count" {
@@ -191,72 +199,174 @@ variable "scale_down_threshold" {
   default     = "15"
 }
 
-variable "task_cpu" {
-  description = "CPU allocated to run a task"
-  default     = 20
-  type        = number
-}
-
-variable "task_mem" {
-  description = "Memory allocated to run a task"
-  default     = 128
-  type        = number
-}
-
-variable "task_image" {
-  description = "Image to use ie: nginx, nginxdemos/hello"
+# Container Definition
+variable "container_image" {
   type        = string
-  default     = "nginxdemos/hello"
+  description = "The default container image to use in container definition"
+  default     = "cloudposse/default-backend"
 }
 
-variable "allow_cidr_blocks" {
-  description = "CIDR blocks to allow access the service"
+variable "container_cpu" {
+  type        = number
+  description = "The vCPU setting to control cpu limits of container. (If FARGATE launch type is used below, this must be a supported vCPU size from the table here: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-cpu-memory-error.html)"
+  default     = 256
+}
+
+variable "container_memory" {
+  type        = number
+  description = "The amount of RAM to allow container to use in MB. (If FARGATE launch type is used below, this must be a supported Memory size from the table here: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-cpu-memory-error.html)"
+  default     = 512
+}
+
+variable "container_ulimits" {
+  type = list(object({
+    name      = string
+    softLimit = number
+    hardLimit = number
+  }))
+
+  description = "The ulimits to configure for the container. This is a list of maps. Each map should contain \"name\", \"softLimit\" and \"hardLimit\""
+
+  default = []
+}
+
+variable "container_memory_reservation" {
+  type        = number
+  description = "The amount of RAM (Soft Limit) to allow container to use in MB. This value must be less than `container_memory` if set"
+  default     = 128
+}
+
+variable "container_volumes" {
+  type = list(object({
+    host_path = string
+    name      = string
+    docker_volume_configuration = list(object({
+      autoprovision = bool
+      driver        = string
+      driver_opts   = map(string)
+      labels        = map(string)
+      scope         = string
+    }))
+  }))
+  description = "Task volume definitions as list of configuration objects"
+  default     = []
+}
+
+variable "container_mount_points" {
+  type = list(object({
+    containerPath = string
+    sourceVolume  = string
+  }))
+
+  description = "Container mount points. This is a list of maps, where each map should contain a `containerPath` and `sourceVolume`"
+  default     = null
+}
+
+variable "container_environment" {
+  type = list(object({
+    name  = string
+    value = string
+  }))
+  description = "The environment variables to pass to the container. This is a list of maps"
+  default     = null
+}
+
+variable "container_entrypoint" {
   type        = list(string)
+  description = "The entry point that is passed to the container"
+  default     = null
+}
+
+variable "container_command" {
+  type        = list(string)
+  description = "The command that is passed to the container"
+  default     = null
+}
+
+variable "container_secrets" {
+  type = list(object({
+    name      = string
+    valueFrom = string
+  }))
+  description = "The secrets to pass to the container. This is a list of maps"
+  default     = null
+}
+
+# https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_HealthCheck.html
+variable "container_healthcheck" {
+  type = object({
+    command     = list(string)
+    retries     = number
+    timeout     = number
+    interval    = number
+    startPeriod = number
+  })
+  description = "A map containing command (string), timeout, interval (duration in seconds), retries (1-10, number of times to retry before marking container unhealthy), and startPeriod (0-300, optional grace period to wait, in seconds, before failed healthchecks count toward retries)"
+  default     = null
+}
+
+variable "container_port" {
+  type        = number
+  description = "The port number on the container bound to assigned host_port"
+  default     = 80
+}
+
+variable "container_port_mappings" {
+  type = list(object({
+    containerPort = number
+    hostPort      = number
+    protocol      = string
+  }))
+
+  description = "The port mappings to configure for the container. This is a list of maps. Each map should contain \"containerPort\", \"hostPort\", and \"protocol\", where \"protocol\" is one of \"tcp\" or \"udp\". If using containers in a task with the awsvpc or host network mode, the hostPort can either be left blank or set to the same value as the containerPort"
+
   default = [
-    "0.0.0.0/0"
+    {
+      containerPort = 80
+      hostPort      = 80
+      protocol      = "tcp"
+    }
   ]
+}
+
+variable "init_containers" {
+  type = list(object({
+    container_definition = any
+    condition            = string
+  }))
+  description = "A list of additional init containers to start. The map contains the container_definition (JSON) and the main container's dependency condition (string) on the init container. The latter can be one of START, COMPLETE, SUCCESS or HEALTHY."
+  default     = []
+}
+
+variable "task_execution_role_policy_inline" {
+  type        = string
+  description = "Task execution role policy"
+  default     = ""
+}
+
+variable "task_execution_role_policy_managed" {
+  type        = list(string)
+  description = "Task execution role managed policies"
+  default = [
+    "AmazonSSMFullAccess"
+  ]
+}
+
+# Cloudwatch Logging
+variable "aws_logs_region" {
+  type        = string
+  description = "The region for the AWS Cloudwatch Logs group"
+  default     = "eu-west-1"
+}
+
+variable "log_driver" {
+  type        = string
+  description = "The log driver to use for the container. If using Fargate launch type, only supported value is awslogs"
+  default     = "awslogs"
 }
 
 variable "log_retention_in_days" {
   description = "Log retention"
   type        = string
   default     = 3
-}
-
-variable "dns_zone_name" {
-  description = "DNS zone name to use"
-  type        = string
-  default     = ""
-}
-
-variable "dns_name" {
-  description = "DNS name to use. Default to use service name"
-  type        = string
-  default     = ""
-}
-
-variable "dns_record_ttl" {
-  description = "DNS record ttl. Default 10 min"
-  type        = string
-  default     = "10"
-}
-
-//variable "self_signed_cert" {
-//  description = "Whether to use self signed or generate a real certificate. Default self signed"
-//  type = bool
-//  default = true
-//}
-
-variable "use_ssl" {
-  description = "To enable SSL"
-  type        = bool
-  default     = true
-}
-
-variable "volume" {
-  description = "Persistent storage to attach to services (efs|ebs). Default none"
-  type        = map(string)
-  default = {
-    type = "none"
-  }
 }
