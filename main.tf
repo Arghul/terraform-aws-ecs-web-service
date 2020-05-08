@@ -157,7 +157,7 @@ resource "aws_security_group_rule" "https" {
 resource "aws_alb" "main" {
   count = var.enable ? 1 : 0
 
-  name            = "${module.label.id}-alb"
+  name            = "${module.label.name}-alb"
   security_groups = concat(var.security_group_ids, data.aws_security_groups.ecs.ids, list(aws_security_group.main[count.index].id))
   subnets         = local.public_subnet_ids
 
@@ -174,7 +174,7 @@ resource "aws_alb" "main" {
 resource "aws_alb_target_group" "main" {
   count = var.enable ? 1 : 0
 
-  name = "${module.label.id}-alb-tg"
+  name = "${module.label.name}-alb-tg"
 
   health_check {
     healthy_threshold   = var.alb_health_check.healthy_threshold
