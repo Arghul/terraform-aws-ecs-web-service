@@ -19,13 +19,13 @@ module "ecs_service" {
   //  ssl_certificate_arn = ""
   container_image = "nginxdemos/hello"
   container_cpu   = 128
-  container_port_mappings = [
-    {
-      containerPort = 80
-      hostPort      = 0
-      protocol      = "tcp"
-    }
-  ]
+//  container_port_mappings = [
+//    {
+//      containerPort = 80
+//      hostPort      = 0
+//      protocol      = "tcp"
+//    }
+//  ]
   container_environment = [
     {
       name  = "VAR"
@@ -37,12 +37,43 @@ module "ecs_service" {
     }
   ]
 
-  container_secrets = [
+  container_port = 80
+
+//  container_secrets = [
+//    {
+//      name      = "SECRET"
+//      valueFrom = "arn:aws:ssm:eu-west-1:076594877490:parameter/arghul/mongo_uri"
+//    }
+//  ]
+
+  init_containers = [
     {
-      name      = "SECRET"
-      valueFrom = "arn:aws:ssm:eu-west-1:076594877490:parameter/arghul/mongo_uri"
+      container_definition =<<EOF
+      {
+        "name": "nginx",
+        "image": "076594877490.dkr.ecr.eu-west-1.amazonaws.com/nginx-auth-proxy:0.4",
+        "memory": 256,
+        "cpu": 128,
+        "essential": true,
+        "portMappings": [
+          {
+            "containerPort": 80,
+            "protocol": "tcp"
+          }
+        ],
+        "links": [ "arghul-dev-hello-arghul" ],
+        "dependsOn": [
+          {
+            "containerName": "arghul-dev-hello-arghul",
+            "condition": "START"
+          }
+        ]
+      }
+      EOF
+      condition = ""
     }
   ]
+
 
   dns_zone_name = "dev.arghul.com"
   use_ssl       = false

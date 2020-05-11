@@ -311,6 +311,12 @@ variable "container_port" {
   default     = 80
 }
 
+variable "container_links" {
+  type        = list(string)
+  description = "List of container names this container can communicate with without port mappings"
+  default     = null
+}
+
 variable "container_port_mappings" {
   type = list(object({
     containerPort = number
@@ -368,3 +374,4 @@ variable "log_retention_in_days" {
   type        = string
   default     = 3
 }
+

@@ -11,7 +11,7 @@ locals {
     {
       containerName = lookup(jsondecode(init_container.container_definition), "name"),
       condition     = init_container.condition
-    }
+    } if init_container.condition != ""
   ]
 }
 
@@ -103,6 +103,7 @@ module "container_definition" {
   entrypoint                   = var.container_entrypoint
   command                      = var.container_command
   mount_points                 = var.container_mount_points
+  links                        = var.container_links
   container_depends_on         = local.container_depends_on
 
   log_configuration = {
@@ -216,6 +217,7 @@ resource "aws_alb_listener" "http" {
       }
     }
   }
+
   dynamic "default_action" {
     for_each = ! var.use_ssl ? [1] : []
     content {
@@ -287,10 +289,6 @@ data "aws_ecs_task_definition" "main" {
   count = var.enable ? 1 : 0
 
   task_definition = aws_ecs_task_definition.main[count.index].family
-
-  depends_on = [
-    aws_ecs_task_definition.main
-  ]
 }
 
 resource "aws_ecs_service" "main" {
